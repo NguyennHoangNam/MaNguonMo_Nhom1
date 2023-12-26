@@ -1,0 +1,141 @@
+import customtkinter as ctk
+import tkinter as tk
+from PIL import Image,ImageTk
+from panels import * 
+
+bg_color = '#212121'
+bdr_color ='#cecac9'
+class Works_place_area(ctk.CTkFrame):
+    def __init__ (self,root_app):
+        super().__init__(master =root_app,corner_radius=0)
+        self.grid(row=1,column=0,sticky='news')
+
+        self.columnconfigure(0,weight=5,uniform='b')
+        self.columnconfigure(1,weight=15,uniform='b')
+        self.columnconfigure(2,weight=8,uniform='b')
+        self.rowconfigure(0,weight=1)
+
+        self.left_side = ctk.CTkFrame(self)
+        self.left_side.grid(row=0,column=0,sticky='news',pady = 20, padx = 10)
+        self.Tool_box = Tool_box(self.left_side,root_app)
+        self.Layer_box = Layer_box(self.left_side,root_app)
+        self.canvas = Canvas_area(self,root_app)
+        self.Menu_box = Menu_box(self,root_app)
+
+class Canvas_area(ctk.CTkCanvas):
+    def __init__ (self,canvas_frame,root_app):
+        super().__init__(master =canvas_frame,highlightthickness=0,relief='ridge',background = bg_color)
+        self.grid(row=0,column=1,sticky='news',padx = 5,pady=15)
+        image_item = self.create_image(int(self.cget("width"))//2,int(self.cget("height"))//2, anchor=tk.CENTER,image = root_app.imagetk)
+
+        self.bind('<Configure>',root_app.resize_image)
+        self.bind("<MouseWheel>",root_app.on_mouse_wheel)
+        self.bind("<Motion>", root_app.track_cursor_placement)
+        
+
+class Menu_box(ctk.CTkTabview):
+    def __init__ (self,parent_app,root_app):
+        super().__init__(master =parent_app,corner_radius=25,border_width = 5,)
+        self.grid(row=0,column=2,sticky='news',pady = 10, padx = 10)
+
+        self.add('Position')
+        self.add('Color')
+        self.add('Effect')
+        self.add('Export')
+
+        Position_box(self.tab('Position'),root_app)
+        Color_box(self.tab('Color'),root_app)
+        Effect_box(self.tab('Effect'),root_app)
+        Export_box(self.tab('Export'),root_app.export_image)
+
+class Tool_box(ctk.CTkFrame):
+    def __init__ (self, parent_app,root_app):
+        super().__init__(master=parent_app)
+        self.pack(expand = True,fill = 'both',pady = 10,padx =10)
+        ToolButton(self,root_app,'icon\Image_Crop_Icon.png',root_app.crop_image)
+        # ToolButton(self,root_app,"A")
+        # ToolButton(self,root_app,"B")
+    
+class Layer_box(ctk.CTkFrame):
+    def __init__ (self, parent_app,root_app):
+        super().__init__(master=parent_app)
+        self.pack(expand = True,fill = 'both',pady = 10,padx =10)
+        self.root_app = root_app
+        self.root_app.layer_box = self
+
+        
+
+class Position_box(ctk.CTkFrame):
+    def __init__ (self, parent_app,root_app):
+        super().__init__(master=parent_app,fg_color='transparent')
+        self.pack(expand = True, fill = 'both')
+
+        self.root_app = root_app
+        SliderPanel(self,root_app.opacity,"opacity",0,255)
+        SliderPanel(self,root_app.rotate_var,"rotation",-180,180)
+        SegmentPanel(self,root_app.flip_var,"Invert",FLIP_OPTIONS)
+        
+
+        # RevertButton(self,(root_app.rotate_var,ROTATE_DEFAULT),
+        #              (root_app.flip_var,FLIP_OPTIONS[0]))
+
+class Color_box(ctk.CTkFrame):
+    def __init__ (self, parent_app,root_app):
+        super().__init__(master=parent_app,fg_color='transparent')
+        self.pack(expand = True, fill = 'both')
+
+        self.root_app = root_app
+        layer_var = root_app.current_layer
+
+        SliderPanel(self,root_app.brightness,"Brightness",0,5 )
+        SliderPanel(self,root_app.vibrance,"Vibrance",0,5 )
+        SwitchPanel(self,(root_app.grayscale,"B/W"),(root_app.invert,"Invert"))
+        #CurveToolPanel(self,root_app)
+
+        # RevertButton(self,(root_app.brightness,BRIGHTNESS_DEFAULT),
+        #              (root_app.vibrance,VIBRANCE_DEFAULT),
+        #              (root_app.grayscale,GRAYSCALE_DEFAULT))
+        
+
+class Effect_box(ctk.CTkFrame):
+    def __init__ (self, parent_app,root_app):
+        super().__init__(master=parent_app,fg_color='transparent')
+        self.pack(expand = True, fill = 'both')
+
+        self.root_app = root_app
+        layer_var = root_app.current_layer
+
+        DropDownPanel(self, root_app.effect, EFFECT_OPTION)
+        SliderPanel(self,root_app.blur,"Blur",0,30 )
+        SliderPanel(self,root_app.sharpness,"Sharpness",0,5 )
+
+        RevertButton(self,(root_app.effect,EFFECT_OPTION[0]),
+                     (root_app.blur,BLUR_DEFAULT),
+                     (root_app.sharpness,SHARPNESS_DEFAULT))
+
+class Menu_Bar(ctk.CTkFrame):
+    def __init__ (self,root_app):
+        super().__init__(master =root_app)
+        self.grid(row=0,column=0,sticky='news',pady = 3, padx = 10)
+        padx = 3
+        pady = 2
+        b1 = ctk.CTkButton(self,text="Import",width=80,corner_radius=0,command=root_app.import_image)
+        b1.pack(side = 'left',padx = padx,pady = pady)
+        b2 = ctk.CTkButton(self,text="Add Layer",width=80,corner_radius=0,command=root_app.add_layer)
+        b2.pack(side = 'left',padx = padx,pady = pady)
+        b3 = ctk.CTkButton(self,text="Exit",width=80,corner_radius=0)
+        b3.pack(side = 'left',padx = padx,pady = pady)
+
+class Export_box(ctk.CTkFrame):
+    def __init__(self,parent,export_image):
+        super().__init__(master=parent, fg_color='transparent')
+        self.pack(expand = True,fill = 'both')
+
+        self.name_string = ctk.StringVar()
+        self.file_string = ctk.StringVar()
+        self.path_string = ctk.StringVar()
+
+        FilePathPanel(self,self.path_string)
+        FileNamePanel(self,self.name_string,self.file_string)
+        
+        SaveButton(self,export_image ,self.name_string,self.file_string,self.path_string)
