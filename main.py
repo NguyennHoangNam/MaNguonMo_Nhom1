@@ -233,7 +233,7 @@ class App(ctk.CTk):
         self.layers.append(Layer(self,"Layer " + str(len(self.layers)),layer.image_data))
 
     def add_layer(self):
-        path = filedialog.askopenfile().name
+        path = filedialog.askopenfile(filetypes=[("Image files", "*.jpg;*.jpeg;*.png")]).name
         new_image = Image.open(path)
         self.layers.append(Layer(self,"Layer " + str(len(self.layers)),new_image))
         self.show_image()
@@ -331,8 +331,7 @@ class App(ctk.CTk):
         return final_image
 
     def import_image(self):
-        self.init = True
-        path = filedialog.askopenfile().name
+        path = filedialog.askopenfile(filetypes=[("Image files", "*.jpg;*.jpeg;*.png")]).name
         new_image = Image.open(path)
         if self.layers:
             for layer in self.layers:
@@ -341,7 +340,6 @@ class App(ctk.CTk):
         self.layers.append(Layer(self,"Layer " + str(len(self.layers)),new_image))
         self.base_image = Image.new("RGB",new_image.size)
         self.current_layer = self.layers[0]
-
         
         #self.reset_parameter()
         self.resize_image()
