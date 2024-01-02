@@ -1,6 +1,6 @@
 import customtkinter as ctk
 import tkinter as tk
-from tkinter import filedialog,Canvas
+from tkinter import filedialog
 from PIL import ImageTk,Image,ImageOps,ImageEnhance,ImageFilter
 from Frame import *
 from settings import *
