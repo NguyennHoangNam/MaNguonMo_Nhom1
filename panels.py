@@ -247,6 +247,29 @@ class LayerPanel(Panel):
                                            command = lambda *args: root_app.duplicate_layer(layer))
         self.copy_button.pack(side = "right")
 
+class TextLayerPanel(Panel):
+    def __init__(self, parent_app,layer):
+        super().__init__(parent = parent_app)
+
+        root_app = parent_app.root_app
+        frame1 = ctk.CTkFrame(self,fg_color="#1d3054")
+        frame1.pack(fill = 'x')
+        self.Label = ctk.CTkLabel(frame1,text=layer.name)
+        self.Label.pack(side = "left")
+        
+
+        self.delete_button = ctk.CTkButton(frame1,text= "X", width=20,height=20,
+                                           command = lambda *args: root_app.delete_layer(layer))
+        self.delete_button.pack(side = "right") 
+        
+        self.select_button = ctk.CTkButton(frame1,text= "O", width=20,height=20,
+                                           command = lambda *args: root_app.change_current_text_layer(root_app.current_text_layer,layer))
+        self.select_button.pack(side = "right")
+
+        # self.copy_button = ctk.CTkButton(frame1,text= "+", width=20,height=20,
+        #                                    command = lambda *args: root_app.duplicate_text_layer(layer))
+        # self.copy_button.pack(side = "right")
+
 
 
 

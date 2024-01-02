@@ -42,11 +42,13 @@ class Menu_box(ctk.CTkTabview):
         self.add('Color')
         self.add('Effect')
         self.add('Export')
+        self.add('Text')
 
         Position_box(self.tab('Position'),root_app)
         Color_box(self.tab('Color'),root_app)
         Effect_box(self.tab('Effect'),root_app)
         Export_box(self.tab('Export'),root_app.export_image)
+        Text_box(self.tab('Text'),root_app)
 
 class Tool_box(ctk.CTkFrame):
     def __init__ (self, parent_app,root_app):
@@ -85,11 +87,15 @@ class Color_box(ctk.CTkFrame):
         self.pack(expand = True, fill = 'both')
 
         self.root_app = root_app
-        layer_var = root_app.current_layer
 
         SliderPanel(self,root_app.brightness,"Brightness",0,5 )
         SliderPanel(self,root_app.vibrance,"Vibrance",0,5 )
         SwitchPanel(self,(root_app.grayscale,"B/W"),(root_app.invert,"Invert"))
+
+        SliderPanel(self,root_app.color_red,"Red",-100,100)
+        SliderPanel(self,root_app.color_green,"Green",-100,100)
+        SliderPanel(self,root_app.color_blue,"Blue",-100,100)
+        SliderPanel(self,root_app.color_hue,"Hue",-100,100)
         #CurveToolPanel(self,root_app)
 
         # RevertButton(self,(root_app.brightness,BRIGHTNESS_DEFAULT),
@@ -109,22 +115,45 @@ class Effect_box(ctk.CTkFrame):
         SliderPanel(self,root_app.blur,"Blur",0,30 )
         SliderPanel(self,root_app.sharpness,"Sharpness",0,5 )
 
-        RevertButton(self,(root_app.effect,EFFECT_OPTION[0]),
-                     (root_app.blur,BLUR_DEFAULT),
-                     (root_app.sharpness,SHARPNESS_DEFAULT))
+        # RevertButton(self,(root_app.effect,EFFECT_OPTION[0]),
+        #              (root_app.blur,BLUR_DEFAULT),
+        #              (root_app.sharpness,SHARPNESS_DEFAULT))
+
+class Text_box(ctk.CTkFrame):
+    def __init__ (self, parent_app,root_app):
+        super().__init__(master=parent_app,fg_color='transparent')
+        self.pack(expand = True, fill = 'both')
+        self.root_app = root_app
+
+        self.add_text_button = ctk.CTkButton(self,text="Add text",command=root_app.add_text_layer)
+        self.add_text_button.pack(pady = 5)
+        self.choose_font_button = ctk.CTkButton(self,textvariable=root_app.font_path,command=root_app.import_font)
+        self.choose_font_button.pack(pady = 5)
+        self.entry_x = ctk.CTkEntry(self,textvariable=root_app.text_x)
+        self.entry_x.pack(pady = 5)
+        self.entry_y = ctk.CTkEntry(self,textvariable=root_app.text_y)
+        self.entry_y.pack(pady = 5)
+        self.entry_size = ctk.CTkEntry(self,textvariable=root_app.font_size)
+        self.entry_size.pack(pady = 5)
+        self.entry_color = ctk.CTkEntry(self,textvariable=root_app.text_color)
+        self.entry_color.pack(pady = 5)
+        self.entry_content = ctk.CTkEntry(self,textvariable=root_app.text_content)
+        self.entry_content.pack(pady = 5)
 
 class Menu_Bar(ctk.CTkFrame):
     def __init__ (self,root_app):
         super().__init__(master =root_app)
         self.grid(row=0,column=0,sticky='news',pady = 3, padx = 10)
-        padx = 3
-        pady = 2
-        b1 = ctk.CTkButton(self,text="Import",width=80,corner_radius=0,command=root_app.import_image)
-        b1.pack(side = 'left',padx = padx,pady = pady)
-        b2 = ctk.CTkButton(self,text="Add Layer",width=80,corner_radius=0,command=root_app.add_layer)
-        b2.pack(side = 'left',padx = padx,pady = pady)
-        b3 = ctk.CTkButton(self,text="Exit",width=80,corner_radius=0)
-        b3.pack(side = 'left',padx = padx,pady = pady)
+        padx = 1
+        pady = 5
+        ipadx = 2
+        ipady = 3
+        b1 = ctk.CTkButton(self,text="Import",width=80,corner_radius=5,command=root_app.import_image)
+        b1.pack(side = 'left',padx = padx,pady = pady,ipadx = ipadx,ipady = ipady)
+        b2 = ctk.CTkButton(self,text="Add Layer",width=80,corner_radius=5,command=root_app.add_layer)
+        b2.pack(side = 'left',padx = padx,pady = pady,ipadx = ipadx,ipady = ipady)
+        b3 = ctk.CTkButton(self,text="Exit",width=80,corner_radius=5)
+        b3.pack(side = 'left',padx = padx,pady = pady,ipadx = ipadx,ipady = ipady)
 
 class Export_box(ctk.CTkFrame):
     def __init__(self,parent,export_image):

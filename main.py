@@ -1,7 +1,7 @@
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import filedialog
-from PIL import ImageTk,Image,ImageOps,ImageEnhance,ImageFilter
+from PIL import ImageTk,Image,ImageOps,ImageEnhance,ImageFilter,ImageFont,ImageDraw
 from Frame import *
 from settings import *
 import numpy as np
@@ -23,9 +23,11 @@ class App(ctk.CTk):
         self.columnconfigure(0,weight=1)
         
         self.layers = []
+        self.change_layer = False
 
         self.base_image = Image.new("RGB",(500,500))
         self.current_layer = None
+        self.current_text_layer = None
         self.image = self.base_image
         self.imagetk = ImageTk.PhotoImage(self.image)
 
@@ -53,19 +55,33 @@ class App(ctk.CTk):
         self.sharpness = ctk.DoubleVar(value=SHARPNESS_DEFAULT)
         self.effect = ctk.StringVar(value=EFFECT_OPTION[0])
 
-        self.control_points = CONTROL_POINTS_DEFAULT
-        #self.red = ctk.I
+        self.color_red = ctk.DoubleVar(value=RED_DEFAULT)
+        self.color_green = ctk.DoubleVar(value=GREEN_DEFAULT)
+        self.color_blue = ctk.DoubleVar(value=BLUE_DEFAULT)
+        self.color_hue = ctk.DoubleVar(value=HUE_DEFAULT)
 
+
+        self.font_path = ctk.StringVar(value=FONT_PATH_DEFAULT)
+        self.font_size = ctk.IntVar(value=FONT_SIZE_DEFAULT)
+        self.text_x = ctk.IntVar(value=TEXT_X)
+        self.text_y = ctk.IntVar(value=TEXT_Y)
+        self.text_content = ctk.StringVar(value=TEXT_CONTENT_DEFAULT)
+        self.text_color = ctk.StringVar(value=TEXT_COLOR_DEFAULT)
+
+        #self.control_points = CONTROL_POINTS_DEFAULT
         self.curso_crood = ctk.StringVar(value='')
 
-        #self.red_value = ctk.IntVar
-
-        self.vars = [self.opacity,self.rotate_var,self.flip_var,self.brightness,self.grayscale,
-                     self.invert,self.vibrance,self.blur,self.sharpness,self.effect]
+        self.vars = [self.opacity,self.rotate_var,self.flip_var,
+                     self.brightness,self.grayscale,self.invert,self.vibrance,
+                     self.blur,self.sharpness,self.effect,
+                     self.color_red,self.color_green,self.color_blue,self.color_hue]
+        self.text_vars = [self.font_path,self.font_size,self.text_x,self.text_y,self.text_content,self.text_color]
         
         for var in self.vars:
-            var.trace_add('write',lambda *args: self.manipulate_image(self.current_layer))
+            var.trace_add('write',lambda *args: self.manipulate_image(self.current_layer,self.current_text_layer))
 
+        for var in self.text_vars:
+            var.trace_add('write',lambda *args: self.manipulate_image(self.current_layer,self.current_text_layer))
 
     def reset_parameter(self):
         
@@ -83,13 +99,15 @@ class App(ctk.CTk):
         self.sharpness.set(SHARPNESS_DEFAULT)
         self.effect.set(EFFECT_OPTION[0])
 
-        self.control_points = CONTROL_POINTS_DEFAULT
-        self.curvetool.update_canvas_info()
-        #self.red = ctk.I
+        # self.control_points = CONTROL_POINTS_DEFAULT
+        # self.curvetool.update_canvas_info()
+        # #self.red = ctk.I
 
-        self.curso_crood.set('')
+        # self.curso_crood.set('')
 
-    def manipulate_image(self,layer):
+    def manipulate_image(self,layer,text_layer):
+        if not layer:
+            return
         self.image = self.base_image
         layer.image_data = layer.og_image_data
 
@@ -114,7 +132,7 @@ class App(ctk.CTk):
             layer.image_data = ImageOps.flip(layer.image_data)
         if self.brightness.get() != BRIGHTNESS_DEFAULT:
             value = self.brightness.get()
-            layer.brightness = value
+            #layer.brightness = value
             brightness_enhancer = ImageEnhance.Brightness(layer.image_data)
             layer.image_data = brightness_enhancer.enhance(value)
             
@@ -137,10 +155,22 @@ class App(ctk.CTk):
             value = self.sharpness.get()
             layer.image_data = layer.image_data.filter(ImageFilter.UnsharpMask(self.sharpness.get()))
             #layer.sharpness = value
-        if self.control_points != CONTROL_POINTS_DEFAULT:
-            #layer.control_points = self.control_points
-            array = (np.array(self.control_points) * 255).astype(int)
-            layer.image_data = self.apply_curve_adjustment(layer.image_data,array)
+        # if self.control_points != CONTROL_POINTS_DEFAULT:
+        #     #layer.control_points = self.control_points
+        #     array = (np.array(self.control_points) * 255).astype(int)
+        #     layer.image_data = self.apply_curve_adjustment(layer.image_data,array)
+
+        for i,color in enumerate([self.color_red,self.color_green,self.color_blue]):
+            if color.get()>0:
+                image_array = np.array(layer.image_data)
+                image_array[:, :, i] = (image_array[:, :, i] +
+                                                 (255-image_array[:, :, i])*((color.get())/100))
+                layer.image_data = Image.fromarray(np.clip(image_array,0,255).astype(np.uint8))
+            elif color.get()<0:
+                image_array = np.array(layer.image_data)
+                image_array[:, :, i] = (image_array[:, :, i] -
+                                                 (image_array[:, :, i])*((color.get())/-100))
+                layer.image_data = Image.fromarray(np.clip(image_array,0,255).astype(np.uint8))
 
         match self.effect.get():
             case 'Emboss': 
@@ -155,6 +185,12 @@ class App(ctk.CTk):
             case 'Edge enchance': 
                 layer.image_data = layer.image_data.filter(ImageFilter.EDGE_ENHANCE)
                 #layer.effect = 'Edge enchance'
+        if text_layer and not self.change_layer :
+            for i in range(len(self.text_vars)):
+                try:
+                    text_layer.text_vars[i] = self.text_vars[i].get()
+                except:
+                    pass
         self.show_image()
 
 
@@ -185,11 +221,21 @@ class App(ctk.CTk):
         self.canvas.delete('all')
         self.resized_image = self.image.resize((self.image_width,self.image_height),Image.NEAREST)
         for layer in self.layers:
-            layer_resize_image = layer.image_data.resize(self.resized_image.size,Image.NEAREST)
-            self.resized_image = Image.composite(layer_resize_image,
-                                            self.resized_image,
-                                            Image.new('L',self.resized_image.size,
-                                                    layer.opacity))
+            if not layer.is_text:
+                layer_resize_image = layer.image_data.resize(self.resized_image.size,Image.NEAREST)
+                self.resized_image = Image.composite(layer_resize_image,
+                                                self.resized_image,
+                                                Image.new('L',self.resized_image.size,
+                                                        layer.opacity))
+                
+            elif layer.is_text:
+                try:
+                    draw = ImageDraw.Draw(self.resized_image)
+                    font = ImageFont.truetype(layer.text_vars[0], layer.text_vars[1])
+                    draw.text((layer.text_vars[2],layer.text_vars[3]), layer.text_vars[4], fill=layer.text_vars[5], font=font)
+                except:
+                    pass
+
         self.imagetk = ImageTk.PhotoImage(self.resized_image)
         self.canvas.create_image(self.canvas_width // 2,self.canvas_height//2,anchor=tk.CENTER,image = self.imagetk)
 
@@ -197,32 +243,21 @@ class App(ctk.CTk):
         
         self.current_layer = layer
         self.opacity.set(layer.opacity)
-        for i in range(1,len(self.vars)):
-            current_layer.vars[i] = self.vars[i].get()
+        if current_layer:
+            for i in range(1,len(self.vars)):
+                current_layer.vars[i] = self.vars[i].get()
 
         for i in range(1, len(self.vars)):
             self.vars[i].set(layer.vars[i])
+
+    def change_current_text_layer(self,current_text_layer,layer):
+        self.change_layer = True
+        self.current_text_layer = layer
+        if current_text_layer:
+            for i in range(len(self.text_vars)):
+                self.text_vars[i].set(layer.text_vars[i])
         
-        #self.manipulate_image(layer)
-        
-
-        
-        # self.zoom_level.set(layer.zoom_level)
-        # self.rotate_var.set(layer.rotate_var)
-        # self.flip_var.set(layer.flip_var)
-
-        # self.brightness.set(layer.brightness)
-        # self.grayscale.set(layer.grayscale)
-        # self.invert.set(layer.invert)
-        # self.vibrance.set(layer.vibrance)
-
-        # self.blur.set(layer.blur)
-        # self.sharpness.set(layer.sharpness)
-        # self.effect.set(layer.effect)
-
-        # self.control_points = layer.control_points
-        #self.curvetool.update_canvas_info()
-
+        self.change_layer = False
     def delete_layer(self,layer):
         layer.panel.destroy()
         self.layers.remove(layer)
@@ -232,11 +267,20 @@ class App(ctk.CTk):
     def duplicate_layer(self,layer):
         self.layers.append(Layer(self,"Layer " + str(len(self.layers)),layer.image_data))
 
+
     def add_layer(self):
         path = filedialog.askopenfile(filetypes=[("Image files", "*.jpg;*.jpeg;*.png")]).name
         new_image = Image.open(path)
-        self.layers.append(Layer(self,"Layer " + str(len(self.layers)),new_image))
+        image_layer = Layer(self,"Layer " + str(len(self.layers)),new_image)
+        self.layers.append(image_layer)
+        self.change_current_layer(self.current_layer,image_layer)
         self.show_image()
+
+    def add_text_layer(self):
+        text_layer = Text_layer(self,"Text " + str(len(self.layers)))
+        self.layers.append(text_layer)
+        self.change_current_text_layer(self.current_text_layer,text_layer)
+        self.manipulate_image(self.current_layer,self.current_text_layer)
 
     def on_mouse_wheel(self, event):
         # Determine the direction and magnitude of the scroll
@@ -308,27 +352,27 @@ class App(ctk.CTk):
         self.canvas.unbind("<B1-Motion>")
         self.canvas.unbind("<ButtonRelease-1>")
     
-    def apply_curve_adjustment(self ,pil_image, control_points):
-        image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2HSV)
-        # Create a lookup table for the curve adjustment
-        lut = np.zeros((256, 1), dtype=np.uint8)
+    # def apply_curve_adjustment(self ,pil_image, control_points):
+    #     image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2HSV)
+    #     # Create a lookup table for the curve adjustment
+    #     lut = np.zeros((256, 1), dtype=np.uint8)
 
-        # Split the control points into x and y coordinates
-        x = [point[0] for point in control_points]
-        y = [point[1] for point in control_points]
+    #     # Split the control points into x and y coordinates
+    #     x = [point[0] for point in control_points]
+    #     y = [point[1] for point in control_points]
 
-        # Interpolate the curve between control points
-        interp = np.interp(np.arange(256), x, y)
+    #     # Interpolate the curve between control points
+    #     interp = np.interp(np.arange(256), x, y)
 
-        # Populate the lookup table
-        lut[:, 0] = np.clip(interp, 0, 255).astype(np.uint8)
+    #     # Populate the lookup table
+    #     lut[:, 0] = np.clip(interp, 0, 255).astype(np.uint8)
 
-        # Apply the curve adjustment using the lookup table
-        image[:, :, 2] = cv2.LUT(image[:, :, 2], lut)
-        final_image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_HSV2RGB))
+    #     # Apply the curve adjustment using the lookup table
+    #     image[:, :, 2] = cv2.LUT(image[:, :, 2], lut)
+    #     final_image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_HSV2RGB))
 
 
-        return final_image
+    #     return final_image
 
     def import_image(self):
         path = filedialog.askopenfile(filetypes=[("Image files", "*.jpg;*.jpeg;*.png")]).name
@@ -341,16 +385,23 @@ class App(ctk.CTk):
         self.base_image = Image.new("RGB",new_image.size)
         self.current_layer = self.layers[0]
         
-        #self.reset_parameter()
+        self.change_current_layer(None,self.layers[0])
         self.resize_image()
         
     def export_image(self,name,file,path):
             export_string = f'{path}/{name}.{file}'
             self.resized_image.save(export_string)
+
+    def import_font(self):
+        path = filedialog.askopenfile(filetypes=[("Font Files", "*.ttf;*.otf")]).name
+        self.font_path.set(path)
+
+
             
 class Layer:
     def __init__(self,root_app,name,image_data):
         self.name = name
+        self.is_text = False
         self.og_image_data = image_data
         self.image_data = image_data   
         self.panel = LayerPanel(root_app.layer_box,self)
@@ -370,13 +421,35 @@ class Layer:
         self.sharpness = SHARPNESS_DEFAULT
         self.effect = EFFECT_OPTION[0]
 
+        self.color_red = RED_DEFAULT
+        self.color_green = GREEN_DEFAULT
+        self.color_blue = BLUE_DEFAULT
+        self.color_hue = HUE_DEFAULT
+
         self.control_points = CONTROL_POINTS_DEFAULT
 
 
-        self.vars = [self.opacity,self.rotate_var,self.flip_var,self.brightness,self.grayscale,
-                     self.invert,self.vibrance,self.blur,self.sharpness,self.effect]
-        # for var in self.vars:
-        #     var.trace_add('write',lambda *args: root_app.manipulate_image(self))         
+        self.vars = [self.opacity,self.rotate_var,self.flip_var,
+                     self.brightness,self.grayscale,self.invert,self.vibrance,
+                     self.blur,self.sharpness,self.effect,
+                     self.color_red,self.color_green,self.color_blue,self.color_hue]
     
+    
+class Text_layer:
+    def __init__(self,root_app,name):
+        self.name = name
+        self.is_text = True
+
+        self.font_path =FONT_PATH_DEFAULT
+        self.font_size = FONT_SIZE_DEFAULT
+        self.text_x = TEXT_X
+        self.text_y = TEXT_Y
+        self.text_content =TEXT_CONTENT_DEFAULT
+        self.text_color =TEXT_COLOR_DEFAULT
+
+        self.panel = TextLayerPanel(root_app.layer_box,self)
+
+        self.text_vars = [self.font_path,self.font_size,self.text_x,self.text_y,self.text_content,self.text_color]
+
 
 App()
