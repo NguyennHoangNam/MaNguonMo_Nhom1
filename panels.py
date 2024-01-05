@@ -21,12 +21,11 @@ class SliderPanel(Panel):
         self.num_text.trace_add('write',self.update_slide)
         self.data_var.trace_add('write',self.update_text)
         ctk.CTkLabel(self, text=text).grid(column = 0, row = 0, sticky ='w',padx= 5)
-        self.num_label = ctk.CTkEntry(self, textvariable = self.num_text,fg_color='transparent',
-                                      corner_radius=0,border_color=DARK_FREY,width=50)
+        self.num_label = ctk.CTkEntry(self, textvariable = self.num_text,
+                                      corner_radius=0,width=50)
         self.num_label.grid(column = 1, row = 0,sticky ='e',padx= 5)
         
         self.slider = ctk.CTkSlider(self,
-                      fg_color=SLIDER_BG,
                       variable=self.data_var,
                       from_ = min_value,
                       to =max_value, command= self.update_text).grid(row = 1 , column = 0,columnspan  = 2,sticky = "we", padx = 10)
@@ -110,6 +109,40 @@ class Curso_coord(ctk.CTkLabel):
         super().__init__(master=parent, textvariable = text)
         self.pack(side = 'bottom')
 
+class PostionPanel(Panel):
+    def __init__(self, parent_app,root_app):
+        super().__init__(parent = parent_app)
+        self.root_app = root_app
+        label = ctk.CTkLabel(self,text="position")
+        label.pack()
+
+        self.x_var = ctk.IntVar(value=0)
+        self.y_var = ctk.IntVar(value=0)
+        self.size_var = ctk.DoubleVar(value=1)
+
+        x_entry = ctk.CTkEntry(self,textvariable = self.x_var,width=50)
+        x_entry.pack(side = 'left',padx = 5)
+        y_entry = ctk.CTkEntry(self,textvariable= self.y_var,width=50)
+        y_entry.pack(side = 'left',padx = 5)
+        size_entry = ctk.CTkEntry(self,textvariable= self.size_var,width=50)
+        size_entry.pack(side = 'left',padx = 5)
+
+        apply_button = ctk.CTkButton(self,text="apply",width=60,
+                                     command = lambda *args: root_app.change_layer_position(self.x_var.get(),
+                                                                                            self.y_var.get(),
+                                                                                            self.size_var.get()))
+        
+
+        reset_button = ctk.CTkButton(self,text="X",width=25,command = self.reset)
+        reset_button.pack(side = 'right',padx = 5)
+        apply_button.pack(side = 'right',padx = 5)
+
+    def reset(self):
+        self.x_var.set(0)
+        self.y_var.set(0)
+        self.size_var.set(1)
+        self.root_app.reset_layer_position()
+        
 class CurveToolPanel(Panel):
     def __init__(self, parent_app,root_app):
         super().__init__(parent = parent_app)
@@ -224,53 +257,80 @@ class FilePathPanel(Panel):
     def open_file_dialog(self):
         self.path_string.set(filedialog.askdirectory())
 
-class LayerPanel(Panel):
+class LayerPanel(ctk.CTkFrame):
     def __init__(self, parent_app,layer):
-        super().__init__(parent = parent_app)
+        super().__init__(master = parent_app)
 
         root_app = parent_app.root_app
-        frame1 = ctk.CTkFrame(self)
-        frame1.pack(fill = 'x')
-        self.Label = ctk.CTkLabel(frame1,text=layer.name)
+        name = ctk.StringVar(value=layer.name)
+        self.pack(fill = 'x',side = 'bottom',pady = 4,ipady = 8,padx = 5)
+        self.Label = ctk.CTkEntry(self,textvariable=name,width=100)
         self.Label.pack(side = "left")
         
 
-        self.delete_button = ctk.CTkButton(frame1,text= "X", width=20,height=20,
+        self.delete_button = ctk.CTkButton(self,text= "X", width=20,height=20,
                                            command = lambda *args: root_app.delete_layer(layer))
         self.delete_button.pack(side = "right") 
         
-        self.select_button = ctk.CTkButton(frame1,text= "O", width=20,height=20,
+        self.select_button = ctk.CTkButton(self,text= "O", width=20,height=20,
                                            command = lambda *args: root_app.change_current_layer(root_app.current_layer,layer))
         self.select_button.pack(side = "right")
 
-        self.copy_button = ctk.CTkButton(frame1,text= "+", width=20,height=20,
+        self.copy_button = ctk.CTkButton(self,text= "+", width=20,height=20,
                                            command = lambda *args: root_app.duplicate_layer(layer))
         self.copy_button.pack(side = "right")
 
-class TextLayerPanel(Panel):
+        self.down_button = ctk.CTkButton(self,text= "↓", width=20,height=20,
+                                           command = lambda *args: root_app.move_layer_down(layer))
+        self.down_button.pack(side = "right")
+
+        self.up_button = ctk.CTkButton(self,text= "↑", width=20,height=20,
+                                           command = lambda *args: root_app.move_layer_up(layer))
+        self.up_button.pack(side = "right")
+
+class TextLayerPanel(ctk.CTkFrame):
     def __init__(self, parent_app,layer):
-        super().__init__(parent = parent_app)
+        super().__init__(master = parent_app,fg_color="#1d3054")
 
         root_app = parent_app.root_app
-        frame1 = ctk.CTkFrame(self,fg_color="#1d3054")
-        frame1.pack(fill = 'x')
-        self.Label = ctk.CTkLabel(frame1,text=layer.name)
+        name = ctk.StringVar(value=layer.name)
+        self.pack(fill = 'x',side ='bottom',pady = 4,ipady = 8,padx = 5)
+        self.Label = ctk.CTkEntry(self,textvariable=name,width=100)
         self.Label.pack(side = "left")
         
 
-        self.delete_button = ctk.CTkButton(frame1,text= "X", width=20,height=20,
+        self.delete_button = ctk.CTkButton(self,text= "X", width=20,height=20,
                                            command = lambda *args: root_app.delete_layer(layer))
         self.delete_button.pack(side = "right") 
         
-        self.select_button = ctk.CTkButton(frame1,text= "O", width=20,height=20,
+        self.select_button = ctk.CTkButton(self,text= "O", width=20,height=20,
                                            command = lambda *args: root_app.change_current_text_layer(root_app.current_text_layer,layer))
         self.select_button.pack(side = "right")
 
-        # self.copy_button = ctk.CTkButton(frame1,text= "+", width=20,height=20,
-        #                                    command = lambda *args: root_app.duplicate_text_layer(layer))
-        # self.copy_button.pack(side = "right")
+        self.copy_button = ctk.CTkButton(self,text= "+", width=20,height=20,
+                                           command = lambda *args: root_app.duplicate_text_layer(layer))
+        self.copy_button.pack(side = "right")
 
+        self.down_button = ctk.CTkButton(self,text= "↓", width=20,height=20,
+                                           command = lambda *args: root_app.move_layer_down(layer))
+        self.down_button.pack(side = "right")
 
+        self.up_button = ctk.CTkButton(self,text= "↑", width=20,height=20,
+                                           command = lambda *args: root_app.move_layer_up(layer))
+        self.up_button.pack(side = "right")
+        
+
+class FilterPanel(ctk.CTkFrame):
+    def __init__(self, parent_app,name,funtion,from_value,to_value):
+        super().__init__(master = parent_app)
+        self.pack()
+        var = ctk.IntVar(value=0)
+        ctk.CTkLabel(self,text=name).pack()
+        slider = ctk.CTkSlider(self,variable=var,from_=from_value,to=to_value)
+        slider.pack(side= 'left',pady = 8,padx = 5)
+        button = ctk.CTkButton(self,textvariable=var,
+                                          command = lambda *args: funtion(var.get()))
+        button.pack(side = 'left',pady = 8,padx = 5)
 
 
 

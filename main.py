@@ -110,6 +110,8 @@ class App(ctk.CTk):
             return
         self.image = self.base_image
         layer.image_data = layer.og_image_data
+        red, green, blue, alpha = layer.image_data.split()
+        layer.image_data = Image.merge('RGB', (red, green, blue))
 
         #if self.opacity.get() != OPACITY_DEFAULT:
         layer.opacity = int(self.opacity.get())
@@ -117,7 +119,7 @@ class App(ctk.CTk):
         elif layer.opacity >255: layer.opacity =255
         if self.rotate_var.get() != ROTATE_DEFAULT:
             value = self.rotate_var.get()
-            layer.image_data = layer.image_data.rotate(value,Image.NEAREST)
+            layer.image_data = layer.image_data.rotate(value,expand=True,resample = Image.NEAREST)
             #layer.rotate_var = value
         if self.flip_var.get() == 'X':
             value = self.flip_var.get()
@@ -142,7 +144,13 @@ class App(ctk.CTk):
             layer.image_data = vibrance_enhancer.enhance(value)
             #layer.vibrance = value
         if self.grayscale.get():
-            layer.image_data = ImageOps.grayscale(layer.image_data)
+            #layer.image_data = ImageOps.grayscale(layer.image_data)
+            image_array = np.array(layer.image_data)
+            average_values = np.mean(image_array, axis=2, keepdims=True)
+
+            # Set the average value for all color channels
+            image_array[:, :, :] = average_values
+            layer.image_data = Image.fromarray(np.clip(image_array,0,255).astype(np.uint8))
             #layer.grayscale = self.grayscale.get()
         if self.invert.get():
             layer.image_data = ImageOps.invert(layer.image_data)
@@ -159,18 +167,20 @@ class App(ctk.CTk):
         #     #layer.control_points = self.control_points
         #     array = (np.array(self.control_points) * 255).astype(int)
         #     layer.image_data = self.apply_curve_adjustment(layer.image_data,array)
-
-        for i,color in enumerate([self.color_red,self.color_green,self.color_blue]):
-            if color.get()>0:
-                image_array = np.array(layer.image_data)
-                image_array[:, :, i] = (image_array[:, :, i] +
-                                                 (255-image_array[:, :, i])*((color.get())/100))
-                layer.image_data = Image.fromarray(np.clip(image_array,0,255).astype(np.uint8))
-            elif color.get()<0:
-                image_array = np.array(layer.image_data)
-                image_array[:, :, i] = (image_array[:, :, i] -
-                                                 (image_array[:, :, i])*((color.get())/-100))
-                layer.image_data = Image.fromarray(np.clip(image_array,0,255).astype(np.uint8))
+        try:
+            for i,color in enumerate([self.color_red,self.color_green,self.color_blue]):
+                if color.get()>0:
+                    image_array = np.array(layer.image_data)
+                    image_array[:, :, i] = (image_array[:, :, i] +
+                                                    (255-image_array[:, :, i])*((color.get())/100))
+                    layer.image_data = Image.fromarray(np.clip(image_array,0,255).astype(np.uint8))
+                elif color.get()<0:
+                    image_array = np.array(layer.image_data)
+                    image_array[:, :, i] = (image_array[:, :, i] -
+                                                    (image_array[:, :, i])*((color.get())/-100))
+                    layer.image_data = Image.fromarray(np.clip(image_array,0,255).astype(np.uint8))
+        except :
+            pass
 
         match self.effect.get():
             case 'Emboss': 
@@ -191,19 +201,18 @@ class App(ctk.CTk):
                     text_layer.text_vars[i] = self.text_vars[i].get()
                 except:
                     pass
+        red, green, blue = layer.image_data.split()
+
+        layer.image_data = Image.merge('RGBA', (red, green, blue,alpha))
         self.show_image()
 
 
-
     def resize_image(self,event =None):
-        self.image = self.base_image
-        # self.image2 = self.image2.resize(self.base_image.size,Image.NEAREST)
-        # self.image3 = self.image3.resize(self.base_image.size,Image.NEAREST)
-        # self.image = Image.composite(self.image2,self.image,Image.new('L',self.image.size,255))
-        # self.image = Image.composite(self.image3,self.image,Image.new('L',self.image.size,0))
-        self.image_ratio = self.image.size[0] / self.image.size[1]
+
         self.canvas_width = self.canvas.winfo_width()
         self.canvas_height = self.canvas.winfo_height()
+
+        self.image_ratio = self.image.size[0] / self.image.size[1]   
         self.Canvas_ratio = self.canvas_width /self.canvas_height
         if self.Canvas_ratio > self.image_ratio:
             self.image_height = int(self.canvas_height)
@@ -211,6 +220,7 @@ class App(ctk.CTk):
         else:
             self.image_width = int(self.canvas_width)
             self.image_height = int(self.image_width / self.image_ratio)
+        self.scale = self.image_width/self.base_image.size[0]
         #self.image_width =int(self.image_width*self.zoom_level.get())
         #self.image_height =int(self.image_height*self.zoom_level.get())
         
@@ -222,12 +232,20 @@ class App(ctk.CTk):
         self.resized_image = self.image.resize((self.image_width,self.image_height),Image.NEAREST)
         for layer in self.layers:
             if not layer.is_text:
-                layer_resize_image = layer.image_data.resize(self.resized_image.size,Image.NEAREST)
-                self.resized_image = Image.composite(layer_resize_image,
-                                                self.resized_image,
-                                                Image.new('L',self.resized_image.size,
-                                                        layer.opacity))
-                
+                layer_resize_image = layer.image_data.resize((int(max(10,layer.image_data.size[0]*self.scale * layer.size)),
+                                                              int(max(10,layer.image_data.size[1]*self.scale * layer.size))),
+                                                              Image.NEAREST)
+                #layer_resize_image = layer_resize_image.crop((0,0,self.resized_image.size[0],self.resized_image.size[1]))
+                # self.resized_image = Image.composite(layer_resize_image,
+                #                                 self.resized_image,
+                #                                 Image.new('L',layer_resize_image.size,
+                #                                         layer.opacity))
+                #layer_resize_image.convert('RGBA')
+                mask1 = layer_resize_image.convert('RGBA')
+                red, green, blue, alpha = mask1.split()
+                new_alpha = alpha.point(lambda i: i*(layer.opacity/255))
+                mask = Image.merge('RGBA', (red, green, blue, new_alpha))
+                self.resized_image.paste(layer_resize_image,(layer.position[0],layer.position[1]),mask=mask)
             elif layer.is_text:
                 try:
                     draw = ImageDraw.Draw(self.resized_image)
@@ -259,14 +277,24 @@ class App(ctk.CTk):
         
         self.change_layer = False
     def delete_layer(self,layer):
-        layer.panel.destroy()
         self.layers.remove(layer)
+        layer.panel.destroy()
         self.show_image()
         del layer
 
     def duplicate_layer(self,layer):
-        self.layers.append(Layer(self,"Layer " + str(len(self.layers)),layer.image_data))
+        new_layer = Layer(self,"Layer " + str(len(self.layers)),layer.image_data)
+        self.layers.append(new_layer)
+        self.change_current_layer(self.current_layer,new_layer)
+        self.show_image()
 
+    def duplicate_text_layer(self,layer):
+        new_text = Text_layer(self,"Text " + str(len(self.layers)))
+        for i in range(len(new_text.text_vars)):
+            new_text.text_vars[i] = layer.text_vars[i]
+        self.layers.append(new_text)
+        self.change_current_text_layer(self.current_text_layer,new_text)
+        self.show_image()
 
     def add_layer(self):
         path = filedialog.askopenfile(filetypes=[("Image files", "*.jpg;*.jpeg;*.png")]).name
@@ -281,6 +309,36 @@ class App(ctk.CTk):
         self.layers.append(text_layer)
         self.change_current_text_layer(self.current_text_layer,text_layer)
         self.manipulate_image(self.current_layer,self.current_text_layer)
+        self.show_image()
+
+    def move_layer_up(self,layer):
+        index = self.layers.index(layer)
+        if index <len(self.layers)-1:
+            self.layers[index], self.layers[index + 1] = self.layers[index + 1], self.layers[index]
+
+        for widget in self.layer_box.winfo_children():
+            widget.pack_forget()
+        for layer in self.layers:
+            layer.panel.pack(fill = 'x',side = 'bottom',pady = 4,ipady = 8,padx = 5)
+        if not layer.is_text:
+            self.change_current_layer(self.current_layer,layer)
+        elif layer.is_text:
+            self.change_current_text_layer(self.current_text_layer,layer)
+        self.show_image()
+
+    def move_layer_down(self,layer):
+        index = self.layers.index(layer)
+        if index > 0:
+            self.layers[index], self.layers[index - 1] = self.layers[index - 1], self.layers[index]
+        for widget in self.layer_box.winfo_children():
+            widget.pack_forget()
+        for layer in self.layers:
+            layer.panel.pack(fill = 'x',side = 'bottom',pady = 4,ipady = 8,padx = 5)
+        if not layer.is_text:
+            self.change_current_layer(self.current_layer,layer)
+        elif layer.is_text:
+            self.change_current_text_layer(self.current_text_layer,layer)
+        self.show_image()
 
     def on_mouse_wheel(self, event):
         # Determine the direction and magnitude of the scroll
@@ -304,12 +362,12 @@ class App(ctk.CTk):
         y = self.canvas.canvasy(event.y)
 
         #self.curso_crood.set(f"{x} , {y}")     
-    def crop_image(self,parent):
+    def crop_image(self,button):
         self.crop_start_x = None
         self.crop_start_y = None
         self.crop_end_x = None
         self.crop_end_y = None
-        self.crop_button = parent
+        self.crop_button = button
         self.canvas.bind("<Button-1>", self.start_crop)
         self.canvas.bind("<B1-Motion>", self.update_crop)
         self.canvas.bind("<ButtonRelease-1>", self.end_crop)
@@ -337,20 +395,215 @@ class App(ctk.CTk):
             dash =(20,5),
             stipple="gray12"
         )
+
     def end_crop(self, event):
         self.canvas.delete("crop_rectangle")
         if self.crop_start_x < self.x_offset: self.crop_start_x = self.x_offset
         if self.crop_start_y < self.y_offset: self.crop_start_y = self.y_offset
         x1, y1, x2, y2 = self.crop_start_x- self.x_offset, self.crop_start_y-self.y_offset, event.x- self.x_offset, event.y- self.y_offset
-        self.current_layer.image_data = self.current_layer.image_data.resize(self.resized_image.size,Image.NEAREST)
-        for layer in self.layers:
-            self.current_layer.image_data = self.current_layer.image_data.crop((min(x1,x2), min(y1,y2), max(x1,x2), max(y1,y2)))
+        self.current_layer.image_data = self.base_image.resize(self.resized_image.size,Image.NEAREST)
+        crop_image = self.resized_image.crop((min(x1,x2), min(y1,y2), max(x1,x2), max(y1,y2)))
+        self.base_image = Image.new("RGB",crop_image.size)
         self.resize_image()
+        self.change_current_layer(self.current_layer,self.current_layer)
         self.crop_button.configure(fg_color = WHITE)
         self.configure(cursor="")
         self.canvas.unbind("<ButtonPress-1>")
         self.canvas.unbind("<B1-Motion>")
         self.canvas.unbind("<ButtonRelease-1>")
+    
+    def draw_rectangle(self,button):
+        self.crop_start_x = None
+        self.crop_start_y = None
+        self.crop_end_x = None
+        self.crop_end_y = None
+        self.crop_button = button
+        self.canvas.bind("<Button-1>", self.start_crop)
+        self.canvas.bind("<B1-Motion>", self.update_crop)
+        self.canvas.bind("<ButtonRelease-1>", self.end_draw_rectangle)
+
+    def end_draw_rectangle(self,event):
+        self.canvas.delete("crop_rectangle")
+        if self.crop_start_x < self.x_offset: self.crop_start_x = self.x_offset
+        if self.crop_start_y < self.y_offset: self.crop_start_y = self.y_offset
+        x1, y1, x2, y2 = self.crop_start_x- self.x_offset, self.crop_start_y-self.y_offset, event.x- self.x_offset, event.y- self.y_offset
+
+        new_image = Image.new("RGBA",(max(x1,x2)-min(x1,x2),max(y1,y2)-min(y1,y2)))
+        rectangle = [(min(x1,x2), min(y1,y2)), (max(x1,x2), max(y1,y2))]
+        shape_layer = Shape_layer(self,"Rectangle " + str(len(self.layers)),new_image,rectangle,'rectangle')
+
+        self.layers.append(shape_layer)
+        self.change_current_layer(self.current_layer,shape_layer)
+        self.show_image()
+
+        self.resize_image()
+        self.change_current_layer(self.current_layer,self.current_layer)
+        self.crop_button.configure(fg_color = WHITE)
+        self.configure(cursor="")
+        self.canvas.unbind("<ButtonPress-1>")
+        self.canvas.unbind("<B1-Motion>")
+        self.canvas.unbind("<ButtonRelease-1>")
+
+    def update_shape(self,color,outline,width,data):
+        if self.current_layer.is_shape:
+            match self.current_layer.shape_type:
+                case 'rectangle':
+                    try:
+                        data = data.split(",")
+                        data_points = [int(num) for num in data]
+                        self.current_layer.og_image_data =  Image.new("RGBA",(data_points[0],data_points[1]))
+                        rectangle = [(0, 0), (data_points[0],data_points[1])]
+                        draw = ImageDraw.Draw(self.current_layer.og_image_data)
+                        draw.rectangle(rectangle, fill=color,outline=outline,width=width)
+                        
+                        self.change_current_layer(self.current_layer,self.current_layer)
+                        self.show_image()
+                    except:
+                        pass
+
+                case 'ellipse':
+                    try:
+                        data = data.split(",")
+                        data_points = [int(num) for num in data]
+                        self.current_layer.og_image_data =  Image.new("RGBA",(data_points[0],data_points[1]))
+                        rectangle = [(0, 0), (data_points[0],data_points[1])]
+                        draw = ImageDraw.Draw(self.current_layer.og_image_data)
+                        draw.ellipse(rectangle, fill=color,outline=outline,width=width)
+                        
+                        self.change_current_layer(self.current_layer,self.current_layer)
+                        self.show_image()
+                    except:
+                        pass
+                case 'polygon':
+                    try:
+                        data = data.split(",")
+                        data_points = [int(num) for num in data]
+                        self.current_layer.og_image_data =  Image.new("RGBA",self.base_image.size)
+                        draw = ImageDraw.Draw(self.current_layer.og_image_data)
+                        arr_2d = [[x, y] for x, y in zip(data_points[::2], data_points[1::2])]
+
+                        subtracted_list = [(max(0,sublist[0] - arr_2d[0][0]), max(0,sublist[1] - arr_2d[0][1])) for sublist in arr_2d]
+                        draw.polygon(subtracted_list, fill=color,outline=outline,width=width)
+                        
+                        self.change_current_layer(self.current_layer,self.current_layer)
+                        self.show_image()
+                    except:
+                        pass
+
+    def draw_ellipse(self,button):
+        self.crop_start_x = None
+        self.crop_start_y = None
+        self.crop_end_x = None
+        self.crop_end_y = None
+        self.crop_button = button
+        self.canvas.bind("<Button-1>", self.start_crop)
+        self.canvas.bind("<B1-Motion>", self.update_crop)
+        self.canvas.bind("<ButtonRelease-1>", self.end_draw_ellipse)
+
+    def end_draw_ellipse(self,event):
+        self.canvas.delete("crop_rectangle")
+        if self.crop_start_x < self.x_offset: self.crop_start_x = self.x_offset
+        if self.crop_start_y < self.y_offset: self.crop_start_y = self.y_offset
+        x1, y1, x2, y2 = self.crop_start_x- self.x_offset, self.crop_start_y-self.y_offset, event.x- self.x_offset, event.y- self.y_offset
+
+        new_image = Image.new("RGBA",(max(x1,x2)-min(x1,x2),max(y1,y2)-min(y1,y2)))
+        ellipse = [(min(x1,x2), min(y1,y2)), (max(x1,x2), max(y1,y2))]
+        shape_layer = Shape_layer(self,"Ellipse " + str(len(self.layers)),new_image,ellipse,'ellipse')
+
+        self.layers.append(shape_layer)
+        self.change_current_layer(self.current_layer,shape_layer)
+        self.show_image()
+
+        self.resize_image()
+        self.change_current_layer(self.current_layer,self.current_layer)
+        self.crop_button.configure(fg_color = WHITE)
+        self.configure(cursor="")
+        self.canvas.unbind("<ButtonPress-1>")
+        self.canvas.unbind("<B1-Motion>")
+        self.canvas.unbind("<ButtonRelease-1>")
+
+    def draw_polygon(self,button):
+        self.crop_button = button
+        self.polygon_points = []
+
+        self.x_offset = int((self.canvas_width - self.resized_image.size[0])/2)
+        self.y_offset = int((self.canvas_height -self.resized_image.size[1])/2)
+
+        self.canvas.bind("<Button-1>", self.add_polygon_point)
+        #self.canvas.bind("<Double-Button-1>", self.end_draw_polygon)
+        self.canvas.bind("<Double-Button-1>", self.end_draw_polygon)
+
+
+    def add_polygon_point(self,event):
+        x = event.x
+        y = event.y
+        if x < self.x_offset: x = self.x_offset
+        if y < self.y_offset: y = self.y_offset
+
+        x = x - self.x_offset
+        y = y - self.y_offset
+        self.polygon_points.append((x,y))
+    def end_draw_polygon(self,event):
+        new_image = Image.new("RGBA",self.base_image.size)
+        shape_layer = Shape_layer(self,"Polygon " + str(len(self.layers)),new_image,self.polygon_points,'polygon')
+        self.layers.append(shape_layer)
+        self.change_current_layer(self.current_layer,shape_layer)
+        self.show_image()
+        self.resize_image()
+        self.change_current_layer(self.current_layer,self.current_layer)
+        self.crop_button.configure(fg_color = WHITE)
+        self.configure(cursor="")
+        self.canvas.unbind("<Double-Button-1>")
+        self.canvas.unbind("<Button-1>")
+        
+
+    def draw_selection(self,button):
+        self.crop_button = button
+        self.polygon_points = []
+
+        self.x_offset = int((self.canvas_width - self.resized_image.size[0])/2)
+        self.y_offset = int((self.canvas_height -self.resized_image.size[1])/2)
+
+        self.canvas.bind("<Button-1>", self.add_polygon_point)
+        #self.canvas.bind("<Double-Button-1>", self.end_draw_polygon)
+        self.canvas.bind("<Double-Button-1>", self.end_selection)
+
+    def end_selection(self,event):
+        mask = Image.new("L",self.current_layer.og_image_data.size)
+        draw = ImageDraw.Draw(mask)
+        draw.polygon(self.polygon_points,fill=255)
+
+        result = Image.new("RGBA", self.current_layer.og_image_data.size)
+        result.paste(self.current_layer.image_data, (0, 0), mask=mask)
+        self.current_layer.og_image_data = result
+        self.show_image()
+        self.resize_image()
+        self.change_current_layer(self.current_layer,self.current_layer)
+        self.crop_button.configure(fg_color = WHITE)
+        self.configure(cursor="")
+        self.canvas.unbind("<Double-Button-1>")
+        self.canvas.unbind("<Button-1>")
+    
+    def equalize_image(self):
+        red, green, blue, alpha = self.current_layer.og_image_data.split()
+
+        red = np.array(red)
+        r_eq = cv2.equalizeHist(red)
+        red_img = Image.fromarray(np.clip(r_eq,0,255).astype(np.uint8))
+
+        green = np.array(green)
+        g_eq  = cv2.equalizeHist(green)
+        green_img = Image.fromarray(np.clip(g_eq,0,255).astype(np.uint8))
+
+        blue = np.array(blue)
+        b_eq   = cv2.equalizeHist(blue)
+        blue_img = Image.fromarray(np.clip(b_eq,0,255).astype(np.uint8))
+
+        self.current_layer.og_image_data = Image.merge('RGBA', (red_img, green_img, blue_img,alpha))
+        self.change_current_layer(self.current_layer,self.current_layer)
+        self.show_image()
+    
+    
     
     # def apply_curve_adjustment(self ,pil_image, control_points):
     #     image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2HSV)
@@ -377,12 +630,15 @@ class App(ctk.CTk):
     def import_image(self):
         path = filedialog.askopenfile(filetypes=[("Image files", "*.jpg;*.jpeg;*.png")]).name
         new_image = Image.open(path)
+        for widget in self.layer_box.winfo_children():
+            widget.destroy()
         if self.layers:
             for layer in self.layers:
                 self.delete_layer(layer)
         self.layers = []
         self.layers.append(Layer(self,"Layer " + str(len(self.layers)),new_image))
         self.base_image = Image.new("RGB",new_image.size)
+        self.image = self.base_image
         self.current_layer = self.layers[0]
         
         self.change_current_layer(None,self.layers[0])
@@ -396,15 +652,56 @@ class App(ctk.CTk):
         path = filedialog.askopenfile(filetypes=[("Font Files", "*.ttf;*.otf")]).name
         self.font_path.set(path)
 
+    def change_layer_position(self,x,y,z):
+        self.current_layer.position = [x,y]
+        self.current_layer.size = z
+        self.show_image()
 
+    def reset_layer_position(self):
+        self.current_layer.position = [0,0]
+        self.current_layer.size = 1
+        self.show_image()
+
+    def min_filter(self,value):
+        try:
+            self.current_layer.og_image_data = self.current_layer.og_image_data.filter(ImageFilter.MinFilter(size=value))
+            self.change_current_layer(self.current_layer,self.current_layer)
+            self.show_image()
+        except:
+            pass
+
+    def max_filter(self,value):
+        try:
+            self.current_layer.og_image_data = self.current_layer.og_image_data.filter(ImageFilter.MaxFilter(size=value))
+            self.change_current_layer(self.current_layer,self.current_layer)
+            self.show_image()
+        except:
+            pass
+    def median_filter(self,value):
+        try:
+            self.current_layer.og_image_data = self.current_layer.og_image_data.filter(ImageFilter.MedianFilter(size=value))
+            self.change_current_layer(self.current_layer,self.current_layer)
+            self.show_image()
+        except:
+            pass
             
+            
+    def reset_image_layer(self):
+        self.current_layer.og_image_data = self.current_layer.root_image
+        self.change_current_layer(self.current_layer,self.current_layer)
+        self.show_image()
+
 class Layer:
     def __init__(self,root_app,name,image_data):
         self.name = name
         self.is_text = False
-        self.og_image_data = image_data
-        self.image_data = image_data   
+        self.is_shape = False
+        self.root_image = image_data.convert('RGBA')
+        self.og_image_data = image_data.convert('RGBA')
+        self.image_data = self.og_image_data
         self.panel = LayerPanel(root_app.layer_box,self)
+        self.position = [0,0]
+        self.size = 1
 
         self.opacity = OPACITY_DEFAULT
 
@@ -450,6 +747,25 @@ class Text_layer:
         self.panel = TextLayerPanel(root_app.layer_box,self)
 
         self.text_vars = [self.font_path,self.font_size,self.text_x,self.text_y,self.text_content,self.text_color]
+
+class Shape_layer(Layer):
+    def __init__(self, root_app,name,image_data,data_points,shapetype):
+        super().__init__(root_app = root_app,name = name,image_data = image_data)
+        self.data_points = data_points
+        self.is_shape = True
+        self.position = [data_points[0][0],data_points[0][1]]
+        self.shape_type = shapetype
+
+        rectangle = [(0, 0), (data_points[1][0]-data_points[0][0], data_points[1][1]-data_points[0][1])]
+        draw = ImageDraw.Draw(self.image_data)
+        match shapetype:
+            case 'rectangle':
+                draw.rectangle(rectangle, fill='red')
+            case 'ellipse':
+                draw.ellipse(rectangle, fill='red')
+            case 'polygon':
+                subtracted_list = [(max(0,sublist[0] - data_points[0][0]), max(0,sublist[1] - data_points[0][1])) for sublist in data_points]
+                draw.polygon(subtracted_list, fill='red')
 
 
 App()
